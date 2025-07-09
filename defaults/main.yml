@@ -1,0 +1,24 @@
+---
+### Install
+elasticsearch_major_version: "9.x"
+elasticsearch_config_path: "/etc/elasticsearch/"
+elasticsearch_force_install: false
+
+### Config
+# Node
+elasticsearch_cluster_name: "elasticsearch"
+elasticsearch_node_name: "{{ inventory_hostname }}"
+# Paths
+elasticsearch_path_data: "/var/lib/elasticsearch"
+elasticsearch_path_logs: "/var/log/elasticsearch"
+# Memory
+elasticsearch_bootstrap_memory_lock: true
+# Network
+elasticsearch_network_host: "127.0.0.1"
+elasticsearch_http_port: 9200
+# Discovery
+elasticsearch_discovery_seed_hosts: []
+elasticsearch_cluster_initial_master_nodes: []
+# Various
+elasticsearch_action_destructive_requires_name: false
+elasticsearch_heap_size: "2g"

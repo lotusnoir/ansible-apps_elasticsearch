@@ -1,0 +1,84 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: docker
+scenario:
+  name: all
+  test_sequence:
+    - destroy
+    - create
+    - prepare
+    - converge
+    - idempotence
+    # - verify
+    - destroy
+
+platforms:
+  - name: apps-elasticsearch-ubuntu20
+    image: lotusnoir/ansible_molecule_test_images:ubuntu20
+    pre_build_image: true
+    cgroupns_mode: host
+    privileged: true
+    capabilities: ["NET_ADMIN"]
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    groups:
+      - python3
+  - name: apps-elasticsearch-ubuntu22
+    image: lotusnoir/ansible_molecule_test_images:ubuntu22
+    pre_build_image: true
+    cgroupns_mode: host
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    groups:
+      - python3
+  - name: apps-elasticsearch-ubuntu24
+    image: lotusnoir/ansible_molecule_test_images:ubuntu24
+    pre_build_image: true
+    cgroupns_mode: host
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    groups:
+      - python3
+  - name: apps-elasticsearch-debian12
+    image: lotusnoir/ansible_molecule_test_images:debian12
+    pre_build_image: true
+    cgroupns_mode: host
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    groups:
+      - python3
+  - name: apps-elasticsearch-debian11
+    image: lotusnoir/ansible_molecule_test_images:debian11
+    pre_build_image: true
+    cgroupns_mode: host
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    groups:
+      - python3
+
+provisioner:
+  name: ansible
+  connection_options:
+    ansible_remote_tmp: /tmp
+    ansible_python_interpreter: auto_silent
+  playbooks:
+    prepare: prepare.yml
+    converge: playbook.yml
+  inventory:
+    group_vars:
+      python3:
+        ansible_python_interpreter: /usr/bin/python3
+    host_vars:
+      bullseye:
+        ansible_python_interpreter: "/usr/bin/python3.9"
+      bookworm:
+        ansible_python_interpreter: "/usr/bin/python3.9"
+
+verifier:
+  name: ansible

@@ -1,0 +1,72 @@
+---
+- name: "Check for elasticsearch folder"
+  ansible.builtin.stat:
+    path: "/usr/share/elasticsearch/bin/elasticsearch"
+  changed_when: false
+  register: elasticsearch_install
+
+- name: "Install tasks"
+  when: not elasticsearch_install.stat.exists or elasticsearch_force_install
+  block:
+    - name: "DEBIAN | Ensure dependencies are installed."
+      ansible.builtin.package:
+        name: apt-transport-https
+        state: present
+      register: pkg_result
+      retries: 12
+      delay: 10
+      until: pkg_result is success
+      when: ansible_os_family == 'Debian'
+
+    - name: "ALL | Ensure dependencies are installed."
+      ansible.builtin.package:
+        name: gnupg2
+        state: present
+      register: pkg_result
+      retries: 12
+      delay: 10
+      until: pkg_result is success
+
+    - name: "DEBIAN | Add Elasticsearch apt key."
+      ansible.builtin.apt_key:
+        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+
+    - name: "DEBIAN | Add elasticsearch repository."
+      ansible.builtin.apt_repository:
+        repo: "deb https://artifacts.elastic.co/packages/{{ elasticsearch_major_version }}/apt stable main"
+        state: present
+        update_cache: true
+
+    - name: "Install elasticsearch."
+      ansible.builtin.package:
+        name: "elasticsearch"
+        state: present
+        force: "yes"
+      register: pkg_result
+      retries: 12
+      delay: 10
+      until: pkg_result is success
+
+- name: "Copy elasticsearch configuration."
+  ansible.builtin.template:
+    src: "elasticsearch.yml.j2"
+    dest: "{{ elasticsearch_config_path }}/elasticsearch.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart elasticsearch
+
+- name: "Copy jvm.options configuration."
+  ansible.builtin.template:
+    src: "jvm.options.j2"
+    dest: "{{ elasticsearch_config_path }}/jvm.options"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart elasticsearch
+
+- name: "Ensure elasticsearch is started and enabled"
+  ansible.builtin.service:
+    name: elasticsearch
+    state: started
