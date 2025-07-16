@@ -1,0 +1,4 @@
+---
+## depends of install method
+_elasticsearch_config_dir: "{% if elasticsearch_install_method == 'src' %}{{ elasticsearch_install_dir }}/config{% else %}/etc/elasticsearch{% endif %}"
+_elasticsearch_exec_path: "{% if elasticsearch_install_method == 'src' %}{{ elasticsearch_install_dir }}{% else %}/usr/share/elasticsearch{% endif %}/bin"

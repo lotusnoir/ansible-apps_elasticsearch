@@ -24,7 +24,13 @@ node.name: {{ elasticsearch_node_name }}
 #
 # Add custom attributes to the node:
 #
-#node.attr.rack: r1
+{% if elasticsearch_node_attr_rack is defined and elasticsearch_node_attr_rack | length > 0 %}
+node.attr.rack: {{ elasticsearch_node_attr_rack }}
+{% endif %}
+
+{% if elasticsearch_node_roles is defined and elasticsearch_node_roles | length > 0 %}
+node.roles: [ {% for host in elasticsearch_node_roles %}"{{ host }}"{{"," if not loop.last else "" }} {% endfor %}]
+{% endif %}
 #
 # ----------------------------------- Paths ------------------------------------
 #
@@ -59,6 +65,15 @@ network.host: {{ elasticsearch_network_host }}
 # finds starting at 9200. Set a specific HTTP port here:
 #
 http.port: {{ elasticsearch_http_port }}
+
+# Allow HTTP API connections from anywhere
+# Connections are encrypted and require user authentication
+http.host: {{ elasticsearch_http_host }}
+
+# Allow other nodes to join the cluster from anywhere
+# Connections are encrypted and mutually authenticated
+transport.host: {{ elasticsearch_transport_host }}
+
 #
 # For more information, consult the network module documentation.
 #
@@ -85,16 +100,15 @@ cluster.initial_master_nodes: [ {% for host in elasticsearch_cluster_initial_mas
 #
 action.destructive_requires_name: {{ elasticsearch_action_destructive_requires_name }}
 
-#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------
-#
-# The following settings, TLS certificates, and keys have been automatically      
-# generated to configure Elasticsearch security features on 09-07-2025 08:14:38
-#
+{% if elasticsearch_extra_config is defined and elasticsearch_extra_config | length > 0 %}
+{{ elasticsearch_extra_config }}
+{% endif %}
+
+# Security
 # --------------------------------------------------------------------------------
 
 # Enable security features
 xpack.security.enabled: true
-
 xpack.security.enrollment.enabled: true
 
 # Enable encryption for HTTP API client connections, such as Kibana, Logstash, and Agents
@@ -108,16 +122,4 @@ xpack.security.transport.ssl:
   verification_mode: certificate
   keystore.path: certs/transport.p12
   truststore.path: certs/transport.p12
-# Create a new cluster with the current node only
-# Additional nodes can still join the cluster later
-cluster.initial_master_nodes: ["apps-elasticsearch-debian12"]
-
-# Allow HTTP API connections from anywhere
-# Connections are encrypted and require user authentication
-http.host: 0.0.0.0
-
-# Allow other nodes to join the cluster from anywhere
-# Connections are encrypted and mutually authenticated
-#transport.host: 0.0.0.0
-
-#----------------------- END SECURITY AUTO CONFIGURATION -------------------------
+# --------------------------------------------------------------------------------

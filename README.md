@@ -23,6 +23,9 @@
 
 Deploy and configure elasticsearch
 
+tested to deploy elasticsearch 9.x.
+
+
 ## Requirements
 
 none

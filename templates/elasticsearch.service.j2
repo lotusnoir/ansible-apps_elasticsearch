@@ -12,18 +12,19 @@ Type=notify
 NotifyAccess=all
 RuntimeDirectory=elasticsearch
 PrivateTmp=true
-Environment=ES_HOME=/usr/share/elasticsearch
-Environment=ES_PATH_CONF=/etc/elasticsearch
+Environment=ES_HOME={% if elasticsearch_install_method == 'src' %}{{ elasticsearch_install_dir }}{% else %}/usr/share/elasticsearch{% endif %}
+
+Environment=ES_PATH_CONF={{ _elasticsearch_config_dir }}
 Environment=PID_DIR=/var/run/elasticsearch
 Environment=ES_SD_NOTIFY=true
 EnvironmentFile=-/etc/default/elasticsearch
 
-WorkingDirectory=/usr/share/elasticsearch
+WorkingDirectory={% if elasticsearch_install_method == 'src' %}{{ elasticsearch_install_dir }}{% else %}/usr/share/elasticsearch{% endif %}
 
-User=elasticsearch
-Group=elasticsearch
+User={{ elasticsearch_user }}
+Group={{ elasticsearch_group }}
 
-ExecStart=/usr/share/elasticsearch/bin/systemd-entrypoint -p ${PID_DIR}/elasticsearch.pid --quiet
+ExecStart={% if elasticsearch_install_method == 'src' %}{{ elasticsearch_install_dir }}{% else %}/usr/share/elasticsearch{% endif %}/bin/systemd-entrypoint -p ${PID_DIR}/elasticsearch.pid --quiet
 
 # StandardOutput is configured to redirect to journalctl since
 # some error messages may be logged in standard output before
@@ -63,6 +64,9 @@ SuccessExitStatus=143
 
 # Allow a slow startup before the systemd notifier module kicks in to extend the timeout
 TimeoutStartSec=900
+
+# Allow memorylock
+LimitMEMLOCK=infinity
 
 [Install]
 WantedBy=multi-user.target

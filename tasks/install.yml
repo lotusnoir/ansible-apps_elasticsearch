@@ -1,72 +1,114 @@
 ---
-- name: "Check for elasticsearch folder"
+- name: "Check for binary"
   ansible.builtin.stat:
-    path: "/usr/share/elasticsearch/bin/elasticsearch"
+    path: "{{ _elasticsearch_exec_path }}/elasticsearch"
   changed_when: false
-  register: elasticsearch_install
+  register: __installed_bin
 
-- name: "Install tasks"
-  when: not elasticsearch_install.stat.exists or elasticsearch_force_install
-  block:
-    - name: "DEBIAN | Ensure dependencies are installed."
-      ansible.builtin.package:
-        name: apt-transport-https
-        state: present
-      register: pkg_result
-      retries: 12
-      delay: 10
-      until: pkg_result is success
-      when: ansible_os_family == 'Debian'
+- name: "Repo install tasks"
+  ansible.builtin.include_tasks: install_repo.yml
+  when: elasticsearch_install_method == "repo"
 
-    - name: "ALL | Ensure dependencies are installed."
-      ansible.builtin.package:
-        name: gnupg2
-        state: present
-      register: pkg_result
-      retries: 12
-      delay: 10
-      until: pkg_result is success
-
-    - name: "DEBIAN | Add Elasticsearch apt key."
-      ansible.builtin.apt_key:
-        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
-        state: present
-
-    - name: "DEBIAN | Add elasticsearch repository."
-      ansible.builtin.apt_repository:
-        repo: "deb https://artifacts.elastic.co/packages/{{ elasticsearch_major_version }}/apt stable main"
-        state: present
-        update_cache: true
-
-    - name: "Install elasticsearch."
-      ansible.builtin.package:
-        name: "elasticsearch"
-        state: present
-        force: "yes"
-      register: pkg_result
-      retries: 12
-      delay: 10
-      until: pkg_result is success
+- name: "Sources install tasks"
+  ansible.builtin.include_tasks: install_src.yml
+  when: elasticsearch_install_method == "src"
 
 - name: "Copy elasticsearch configuration."
   ansible.builtin.template:
     src: "elasticsearch.yml.j2"
-    dest: "{{ elasticsearch_config_path }}/elasticsearch.yml"
-    owner: root
-    group: root
+    dest: "{{ _elasticsearch_config_dir }}/elasticsearch.yml"
+    owner: "{{ elasticsearch_user }}"
+    group: "{{ elasticsearch_group }}"
     mode: "0644"
   notify: Restart elasticsearch
 
 - name: "Copy jvm.options configuration."
   ansible.builtin.template:
     src: "jvm.options.j2"
-    dest: "{{ elasticsearch_config_path }}/jvm.options"
-    owner: root
-    group: root
+    dest: "{{ _elasticsearch_config_dir }}/jvm.options"
+    owner: "{{ elasticsearch_user }}"
+    group: "{{ elasticsearch_group }}"
     mode: "0644"
   notify: Restart elasticsearch
+
+- name: "Configuring systemd-entrypoint"
+  ansible.builtin.template:
+    src: systemd-entrypoint.j2
+    dest: "{{ _elasticsearch_exec_path }}/systemd-entrypoint"
+    owner: "{{ elasticsearch_user }}"
+    group: "{{ elasticsearch_group }}"
+    mode: "0755"
+  when: elasticsearch_install_method == "src"
+
+- name: "Configuring systemd"
+  ansible.builtin.template:
+    src: elasticsearch.service.j2
+    dest: "/lib/systemd/system/elasticsearch.service"
+    owner: "{{ elasticsearch_user }}"
+    group: "{{ elasticsearch_group }}"
+    mode: "0644"
+  notify:
+    - "Reload systemd"
+    - "Restart elasticsearch"
 
 - name: "Ensure elasticsearch is started and enabled"
   ansible.builtin.service:
     name: elasticsearch
     state: started
+    enabled: true
+  when: elasticsearch_start_service
+
+- name: "Check for tokens"
+  ansible.builtin.stat:
+    path: "{{ _elasticsearch_config_dir }}/enrollment_tokens.txt"
+  changed_when: false
+  register: __token_file
+  when: elasticsearch_get_tokens
+
+- name: "Get token taks"
+  when: elasticsearch_get_tokens and not __token_file.stat.exists
+  block:
+    - name: "Run elasticsearch-create-enrollment-token for Kibana"
+      become: true
+      become_user: "{% if elasticsearch_install_method == 'src' %}{{ elasticsearch_user }}{% else %}root{% endif %}"
+      ansible.builtin.command: >
+        {{ _elasticsearch_exec_path }}/elasticsearch-create-enrollment-token -s kibana --url https://127.0.0.1:9200
+      register: kibana_token
+      changed_when: false
+      failed_when: false
+
+    - name: "Show Kibana enrollment token"
+      ansible.builtin.debug:
+        msg: "Enrollment token for Kibana: {{ kibana_token.stdout }}"
+
+    - name: Add token to local file
+      become: true
+      become_user: "{% if elasticsearch_install_method == 'src' %}{{ elasticsearch_user }}{% else %}root{% endif %}"
+      ansible.builtin.lineinfile:
+        path: "{{ _elasticsearch_config_dir }}/enrollment_tokens.txt"
+        line: "Kibana enrollment token: {{ kibana_token.stdout }}"
+        create: true
+        insertafter: EOF
+        mode: '0644'
+
+    - name: "Run elasticsearch-create-enrollment-token for node"
+      become: true
+      become_user: "{% if elasticsearch_install_method == 'src' %}{{ elasticsearch_user }}{% else %}root{% endif %}"
+      ansible.builtin.command: >
+        {{ _elasticsearch_exec_path }}/elasticsearch-create-enrollment-token -s node
+      register: node_token
+      changed_when: false
+      failed_when: false
+
+    - name: "Show node enrollment token"
+      ansible.builtin.debug:
+        msg: "Node enrollment token: {{ node_token.stdout }}"
+
+    - name: "Add token to local file"
+      become: true
+      become_user: "{% if elasticsearch_install_method == 'src' %}{{ elasticsearch_user }}{% else %}root{% endif %}"
+      ansible.builtin.lineinfile:
+        path: "{{ _elasticsearch_config_dir }}/enrollment_tokens.txt"
+        line: "Node enrollment token: {{ node_token.stdout }}"
+        insertafter: EOF
+        mode: '0644'

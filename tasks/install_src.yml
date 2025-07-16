@@ -1,0 +1,136 @@
+---
+- name: "Get current version"
+  ansible.builtin.shell: |
+    set -o pipefail
+    {{ _elasticsearch_exec_path }}/elasticsearch --version | grep -oP 'Version: \K[0-9.]+'
+  args:
+    executable: /bin/bash
+  changed_when: false
+  register: __installed_version
+  when: __installed_bin.stat.exists
+
+- name: "Install tasks"
+  when: (not __installed_bin.stat.exists) or (__installed_version is defined and elasticsearch_version not in __installed_version.stdout) or elasticsearch_install_force
+  block:
+    - name: "Create user"
+      ansible.builtin.include_tasks: create_user.yml
+      when: elasticsearch_user != "root"
+
+    - name: "Create dirs"
+      ansible.builtin.file:
+        path: "{{ item | safe | trim }}"
+        state: directory
+        owner: "{{ elasticsearch_user }}"
+        group: "{{ elasticsearch_group }}"
+        mode: "0755"
+      loop:
+        - "{{ elasticsearch_install_dir }}"
+        - "{{ elasticsearch_install_dir }}/config/certs"
+        - "{{ elasticsearch_path_logs }}"
+        - "{{ elasticsearch_path_data }}"
+        - "{{ elasticsearch_temp_dir }}/{{ role_path | basename }}"
+
+    - name: "Installing requirements"
+      ansible.builtin.package:
+        name:
+          - unzip
+          - tar
+        state: present
+      become: true
+      register: pkg_result
+      retries: 12
+      delay: 10
+      until: pkg_result is success
+
+    - name: "Copy local binary"
+      ansible.builtin.copy:
+        src: "{{ elasticsearch_local_files }}"
+        dest: "{{ elasticsearch_temp_dir }}/{{ elasticsearch_pkg_name }}"
+        mode: "0755"
+      when: elasticsearch_install_origin == "local"
+
+    - name: "Download binary by host"
+      ansible.builtin.get_url:
+        url: "{{ elasticsearch_dl_url }}"
+        dest: "{{ elasticsearch_temp_dir }}/{{ elasticsearch_pkg_name }}"
+        timeout: 60
+        mode: "0644"
+      when:
+        - elasticsearch_install_origin == "internet"
+        - elasticsearch_dl_executor == "host"
+
+    - name: "Download binary by localhost"
+      ansible.builtin.get_url:
+        url: "{{ elasticsearch_dl_url }}"
+        dest: "{{ elasticsearch_temp_dir }}/{{ elasticsearch_pkg_name }}"
+        timeout: 60
+        mode: "0644"
+      delegate_to: localhost
+      when:
+        - elasticsearch_install_origin == "internet"
+        - elasticsearch_dl_executor == "localhost"
+
+    - name: "Copy local binary"
+      ansible.builtin.copy:
+        src: "{{ elasticsearch_temp_dir }}/{{ elasticsearch_pkg_name }}"
+        dest: "{{ elasticsearch_temp_dir }}/{{ elasticsearch_pkg_name }}"
+        mode: "0755"
+      when:
+        - elasticsearch_install_origin == "internet"
+        - elasticsearch_dl_executor == "localhost"
+
+    - name: "Unarchive"
+      ansible.builtin.unarchive:
+        src: "{{ elasticsearch_temp_dir }}/{{ elasticsearch_pkg_name }}"
+        dest: "{{ elasticsearch_install_dir }}"
+        extra_opts: [--strip-components=1]
+        remote_src: true
+        owner: "{{ elasticsearch_user }}"
+        group: "{{ elasticsearch_group }}"
+
+    - name: "Change file ownership, group and permissions"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: "{{ elasticsearch_user }}"
+        group: "{{ elasticsearch_group }}"
+        mode: "0755"
+        recurse: true
+      loop:
+        - "{{ elasticsearch_install_dir }}/bin"
+        - "{{ elasticsearch_install_dir }}/jdk/bin"
+
+    - name: Check a certificate of authority
+      ansible.builtin.stat:
+        path: "{{ elasticsearch_install_dir }}/config/certs/elastic-ca.p12"
+      register: __elastic_ca_file
+
+    - name: Generate a certificate of authority
+      ansible.builtin.command: "{{ _elasticsearch_exec_path }}/elasticsearch-certutil ca --out {{ elasticsearch_install_dir }}/config/certs/elastic-ca.p12 --pass '{{ elasticsearch_tls_cert_pass }}'"
+      changed_when: false
+      become: true
+      become_user: "{{ elasticsearch_user }}"
+      when: not __elastic_ca_file.stat.exists
+
+    - name: Check a certificate and private key for a node
+      ansible.builtin.stat:
+        path: "{{ elasticsearch_install_dir }}/config/certs/http.p12"
+      register: __elastic_certificates_file
+
+    - name: "Generate certificates"
+      ansible.builtin.command: "{{ _elasticsearch_exec_path }}/elasticsearch-certutil cert --ca {{ elasticsearch_install_dir }}/config/certs/elastic-ca.p12 \
+                                --ca-pass '{{ elasticsearch_tls_cert_pass }}' --out {{ elasticsearch_install_dir }}/config/certs/{{ item }}.p12 --pass '{{ elasticsearch_tls_cert_ca_pass }}'"
+      become: true
+      become_user: "{{ elasticsearch_user }}"
+      changed_when: false
+      loop:
+        - http
+        - transport
+      when: not __elastic_certificates_file.stat.exists
+
+        # - name: "Add memory lock limits"
+        #  ansible.builtin.blockinfile:
+        #    path: /etc/security/limits.conf
+        #    block: |
+        #      # allow user 'elasticsearch' mlockall
+        #      elasticsearch soft memlock unlimited
+        #      elasticsearch hard memlock unlimited

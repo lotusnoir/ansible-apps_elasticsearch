@@ -1,13 +1,35 @@
 ---
 ### Install
+elasticsearch_install_method: repo  # or src
+elasticsearch_install_force: false
+elasticsearch_start_service: true
+
+### REPO install
 elasticsearch_major_version: "9.x"
-elasticsearch_config_path: "/etc/elasticsearch/"
-elasticsearch_force_install: false
+
+### SRC install
+elasticsearch_install_origin: internet  # or local
+elasticsearch_dl_executor: host  # or localhost
+elasticsearch_version: "9.0.3"
+elasticsearch_distrib: "linux"
+elasticsearch_arch: "x86_64"
+elasticsearch_install_dir: "/opt/elasticsearch"
+elasticsearch_group: "elasticsearch"
+elasticsearch_user: "elasticsearch"
+elasticsearch_pkg_name: "elasticsearch-{{ elasticsearch_version }}-{{ elasticsearch_distrib }}-{{ elasticsearch_arch }}.tar.gz"
+elasticsearch_dl_url: "https://artifacts.elastic.co/downloads/elasticsearch/{{ elasticsearch_pkg_name }}"
+elasticsearch_temp_dir: "/tmp"
+
+# if elasticsearch_install_origin: local
+elasticsearch_local_files: "~/Downloads/shared-files/{{ role_path | basename }}/{{ elasticsearch_pkg_name }}"
 
 ### Config
+elasticsearch_get_tokens: true
 # Node
 elasticsearch_cluster_name: "elasticsearch"
 elasticsearch_node_name: "{{ inventory_hostname }}"
+elasticsearch_node_attr_rack: ""
+elasticsearch_node_roles: []
 # Paths
 elasticsearch_path_data: "/var/lib/elasticsearch"
 elasticsearch_path_logs: "/var/log/elasticsearch"
@@ -15,10 +37,17 @@ elasticsearch_path_logs: "/var/log/elasticsearch"
 elasticsearch_bootstrap_memory_lock: true
 # Network
 elasticsearch_network_host: "127.0.0.1"
+elasticsearch_http_host: '0.0.0.0'
 elasticsearch_http_port: 9200
+elasticsearch_transport_host: '0.0.0.0'
 # Discovery
 elasticsearch_discovery_seed_hosts: []
-elasticsearch_cluster_initial_master_nodes: []
+elasticsearch_cluster_initial_master_nodes: ["{{ elasticsearch_node_name }}"]
 # Various
 elasticsearch_action_destructive_requires_name: false
 elasticsearch_heap_size: "2g"
+
+elasticsearch_extra_config: ""
+
+elasticsearch_tls_cert_pass: ""
+elasticsearch_tls_cert_ca_pass: ""

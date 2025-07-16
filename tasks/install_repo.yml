@@ -1,0 +1,49 @@
+---
+- name: "Repo install tasks"
+  when: (not __installed_bin.stat.exists) or elasticsearch_install_force
+  block:
+    - name: "Debian tasks"
+      when: ansible_os_family == 'Debian'
+      block:
+        - name: "DEBIAN | Ensure dependencies are installed."
+          ansible.builtin.package:
+            name:
+              - apt-transport-https
+              - gnupg2
+            state: present
+          register: pkg_result
+          retries: 12
+          delay: 10
+          until: pkg_result is success
+          when: ansible_os_family == 'Debian'
+
+        - name: "DEBIAN | Add Elasticsearch apt key."
+          ansible.builtin.apt_key:
+            url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+            state: present
+
+        - name: "DEBIAN | Add elasticsearch repository."
+          ansible.builtin.apt_repository:
+            repo: "deb https://artifacts.elastic.co/packages/{{ elasticsearch_major_version }}/apt stable main"
+            state: present
+            update_cache: true
+
+        - name: "Install elasticsearch."
+          ansible.builtin.package:
+            name: "elasticsearch"
+            state: present
+            force: "yes"
+          register: pkg_result
+          retries: 12
+          delay: 10
+          until: pkg_result is success
+
+            #    - name: "Change file ownership, group and permissions"
+            #      ansible.builtin.file:
+            #        path: "{{ item }}"
+            #        owner: "{{ elasticsearch_user }}"
+            #        group: "{{ elasticsearch_group }}"
+            #        mode: "0755"
+            #        recurse: true
+            #      loop:
+            #        - "{{ elasticsearch_install_dir }}"
