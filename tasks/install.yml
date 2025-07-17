@@ -118,8 +118,10 @@
   become_user: "{% if elasticsearch_install_method == 'src' %}{{ elasticsearch_user }}{% else %}root{% endif %}"
   ansible.builtin.shell: |
     set -o pipefail
-    printf "y\n{{ elasticsearch_user_elastic_pwd }}\n{{ elasticsearch_user_elastic_pwd }}" |
+    printf "y\n{{ elasticsearch_user_elastic_pwd }}\n{{ elasticsearch_user_elastic_pwd }}\n" |
     {{ _elasticsearch_exec_path }}/elasticsearch-reset-password -i -u elastic
+  args:
+    executable: /bin/bash
   no_log: true
   changed_when: false
   when:

@@ -25,6 +25,11 @@ Deploy and configure elasticsearch
 
 tested to deploy elasticsearch 9.x.
 
+install time with repo = 1/run 145.73s -  2/run 8.56s
+install time with src / local = 1/run  30.75s - 2/run 10.73s
+install time with src / internet / host = 1/run 30.39s - 2/run 11.23s
+install time with src / internet / localhost = 1/run 33.59s - 2/run 11.47s
+
 
 ## Requirements
 
