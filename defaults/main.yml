@@ -5,7 +5,7 @@ elasticsearch_install_force: false
 elasticsearch_start_service: true
 
 ### REPO install
-elasticsearch_major_version: "9.x"
+elasticsearch_major: "9.x"
 
 ### SRC install
 elasticsearch_install_origin: internet  # or local

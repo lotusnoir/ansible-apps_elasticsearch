@@ -10,7 +10,9 @@
   when: __installed_bin.stat.exists
 
 - name: "Install tasks"
-  when: (not __installed_bin.stat.exists) or (__installed_version is defined and elasticsearch_version not in __installed_version.stdout) or elasticsearch_install_force
+  when: not __installed_bin.stat.exists
+      or elasticsearch_version not in (__installed_version.stdout | default(''))
+      or elasticsearch_install_force | default(false)
   block:
     - name: "Create user"
       ansible.builtin.include_tasks: create_user.yml
@@ -37,10 +39,10 @@
           - tar
         state: present
       become: true
-      register: pkg_result
+      register: __pkg_result
       retries: 12
       delay: 10
-      until: pkg_result is success
+      until: __pkg_result is success
 
     - name: "Copy local binary"
       ansible.builtin.copy:
@@ -105,7 +107,10 @@
       register: __elastic_ca_file
 
     - name: Generate a certificate of authority
-      ansible.builtin.command: "{{ _elasticsearch_exec_path }}/elasticsearch-certutil ca --out {{ elasticsearch_install_dir }}/config/certs/elastic-ca.p12 --pass '{{ elasticsearch_tls_cert_pass }}'"
+      ansible.builtin.command: >
+        {{ _elasticsearch_exec_path }}/elasticsearch-certutil ca
+        --out {{ elasticsearch_install_dir }}/config/certs/elastic-ca.p12
+        --pass '{{ elasticsearch_tls_cert_pass }}'
       changed_when: false
       become: true
       become_user: "{{ elasticsearch_user }}"
@@ -117,8 +122,12 @@
       register: __elastic_certificates_file
 
     - name: "Generate certificates"
-      ansible.builtin.command: "{{ _elasticsearch_exec_path }}/elasticsearch-certutil cert --ca {{ elasticsearch_install_dir }}/config/certs/elastic-ca.p12 \
-                                --ca-pass '{{ elasticsearch_tls_cert_pass }}' --out {{ elasticsearch_install_dir }}/config/certs/{{ item }}.p12 --pass '{{ elasticsearch_tls_cert_ca_pass }}'"
+      ansible.builtin.command: >
+        {{ _elasticsearch_exec_path }}/elasticsearch-certutil cert
+        --ca {{ elasticsearch_install_dir }}/config/certs/elastic-ca.p12
+        --ca-pass '{{ elasticsearch_tls_cert_pass }}'
+        --out {{ elasticsearch_install_dir }}/config/certs/{{ item }}.p12
+        --pass '{{ elasticsearch_tls_cert_ca_pass }}'
       become: true
       become_user: "{{ elasticsearch_user }}"
       changed_when: false
